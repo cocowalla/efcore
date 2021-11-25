@@ -66,6 +66,9 @@ public class SqlServerConventionSetBuilder : RelationalConventionSetBuilder
         ReplaceConvention(
             conventionSet.EntityTypeAnnotationChangedConventions, (RelationalValueGenerationConvention)valueGenerationConvention);
 
+        ReplaceConvention(
+            conventionSet.ForeignKeyOwnershipChangedConventions, (RelationalValueGenerationConvention)valueGenerationConvention);
+
         var sqlServerTemporalConvention = new SqlServerTemporalConvention(Dependencies, RelationalDependencies);
         ConventionSet.AddBefore(
             conventionSet.EntityTypeAnnotationChangedConventions,
