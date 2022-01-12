@@ -786,5 +786,60 @@ namespace Microsoft.EntityFrameworkCore
             public int Id { get; set; }
             public int? Value { get; set; }
         }
+
+        [ConditionalTheory]
+        [MemberData(nameof(IsAsyncData))]
+        public virtual async Task Group_by_multiple_aggregate_joining_different_tables(bool async)
+        {
+            var contextFactory = await InitializeAsync<Context27163>();
+            using var context = contextFactory.CreateContext();
+
+            var query = context.Parents
+                .GroupBy(x => new { })
+                .Select(g => new
+                {
+                    Test1 = g
+                        .Select(x => x.Child1.Value1)
+                        .Distinct()
+                        .Count(),
+                    Test2 = g
+                        .Select(x => x.Child2.Value2)
+                        .Distinct()
+                        .Count()
+                });
+
+            var orders = async
+                ? await query.ToListAsync()
+                : query.ToList();
+        }
+
+        protected class Context27163 : DbContext
+        {
+            public Context27163(DbContextOptions options)
+                : base(options)
+            {
+            }
+
+            public DbSet<Parent> Parents { get; set; }
+        }
+
+        public class Parent
+        {
+            public int Id { get; set; }
+            public Child1 Child1 { get; set; }
+            public Child2 Child2 { get; set; }
+        }
+
+        public class Child1
+        {
+            public int Id { get; set; }
+            public string Value1 { get; set; }
+        }
+
+        public class Child2
+        {
+            public int Id { get; set; }
+            public string Value2 { get; set; }
+        }
     }
 }

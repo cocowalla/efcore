@@ -213,5 +213,20 @@ GROUP BY [t].[Value]");
 FROM [Table] AS [t]
 GROUP BY [t].[Value]");
         }
+
+        public override async Task Group_by_multiple_aggregate_joining_different_tables(bool async)
+        {
+            await base.Group_by_multiple_aggregate_joining_different_tables(async);
+
+            AssertSql(
+                @"SELECT COUNT(DISTINCT ([c].[Value1])) AS [Test1], COUNT(DISTINCT ([c0].[Value2])) AS [Test2]
+FROM (
+    SELECT [p].[Child1Id], [p].[Child2Id], 1 AS [Key]
+    FROM [Parents] AS [p]
+) AS [t]
+LEFT JOIN [Child1] AS [c] ON [t].[Child1Id] = [c].[Id]
+LEFT JOIN [Child2] AS [c0] ON [t].[Child2Id] = [c0].[Id]
+GROUP BY [t].[Key]");
+        }
     }
 }

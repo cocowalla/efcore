@@ -869,20 +869,30 @@ namespace Microsoft.EntityFrameworkCore.Query.SqlExpressions
                         && subquery.Offset == null
                         && subquery._groupBy.Count == 0
                         && subquery.Predicate != null
-                        && ((AppContext.TryGetSwitch("Microsoft.EntityFrameworkCore.Issue27102", out var enabled) && enabled)
+                        && ((AppContext.TryGetSwitch("Microsoft.EntityFrameworkCore.Issue27102", out var enabled27102) && enabled27102)
                             || subquery.Predicate.Equals(subquery._groupingCorrelationPredicate))
-                        && ((AppContext.TryGetSwitch("Microsoft.EntityFrameworkCore.Issue27094", out var enabled2) && enabled2)
+                        && ((AppContext.TryGetSwitch("Microsoft.EntityFrameworkCore.Issue27094", out var enabled27094) && enabled27094)
                             || subquery._groupingParentSelectExpressionId == _selectExpression._groupingParentSelectExpressionId))
                     {
                         var initialTableCounts = 0;
                         var potentialTableCount = Math.Min(_selectExpression._tables.Count, subquery._tables.Count);
                         for (var i = 0; i < potentialTableCount; i++)
                         {
-                            if (!string.Equals(
-                                _selectExpression._tableReferences[i].Alias,
-                                subquery._tableReferences[i].Alias, StringComparison.OrdinalIgnoreCase))
+                            if (AppContext.TryGetSwitch("Microsoft.EntityFrameworkCore.Issue27163", out var enabled27163) && enabled27163)
                             {
-                                break;
+                                if (!string.Equals(
+                                    _selectExpression._tableReferences[i].Alias,
+                                    subquery._tableReferences[i].Alias, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                if (!IsSameTable(i))
+                                {
+                                    break;
+                                }
                             }
 
                             if (_selectExpression._tables[i] is SelectExpression originalNestedSelectExpression
@@ -900,7 +910,7 @@ namespace Microsoft.EntityFrameworkCore.Query.SqlExpressions
                             // We only replace columns from initial tables.
                             // Additional tables may have been added to outer from other terms which may end up matching on table alias
                             var columnExpressionReplacingExpressionVisitor =
-                                AppContext.TryGetSwitch("Microsoft.EntityFrameworkCore.Issue27083", out var enabled3) && enabled3
+                                AppContext.TryGetSwitch("Microsoft.EntityFrameworkCore.Issue27083", out var enabled27083) && enabled27083
                                 ? new ColumnExpressionReplacingExpressionVisitor(
                                     subquery, _selectExpression._tableReferences)
                                 : new ColumnExpressionReplacingExpressionVisitor(
@@ -923,6 +933,45 @@ namespace Microsoft.EntityFrameworkCore.Query.SqlExpressions
                             var updatedProjection = columnExpressionReplacingExpressionVisitor.Visit(subquery._projection[0].Expression);
 
                             return updatedProjection;
+                        }
+
+                        bool IsSameTable(int index)
+                        {
+                            if (!string.Equals(
+                                _selectExpression._tableReferences[index].Alias,
+                                subquery._tableReferences[index].Alias, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return false;
+                            }
+
+                            var outerTableExpressionBase = _selectExpression._tables[index];
+                            var innerTableExpressionBase = subquery._tables[index];
+
+                            TableExpression? outerTable = null;
+                            TableExpression? innerTable = null;
+
+                            if (outerTableExpressionBase is InnerJoinExpression outerInnerJoin
+                                && innerTableExpressionBase is InnerJoinExpression innerInnerJoin)
+                            {
+                                outerTable = outerInnerJoin.Table as TableExpression;
+                                innerTable = innerInnerJoin.Table as TableExpression;
+                            }
+                            else if (outerTableExpressionBase is LeftJoinExpression outerLeftJoin
+                                && innerTableExpressionBase is LeftJoinExpression innerLeftJoin)
+                            {
+                                outerTable = outerLeftJoin.Table as TableExpression;
+                                innerTable = innerLeftJoin.Table as TableExpression;
+                            }
+
+                            if (outerTable != null
+                                && innerTable != null
+                                && !(string.Equals(outerTable.Name, innerTable.Name, StringComparison.OrdinalIgnoreCase)
+                                    && string.Equals(outerTable.Schema, innerTable.Schema, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                return false;
+                            }
+
+                            return true;
                         }
                     }
                 }
